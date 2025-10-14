@@ -1,0 +1,25 @@
+{
+  "name": "sharescreen-app",
+  "version": "1.0.0",
+  "description": "A simple screen sharing web application with remote control",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start-agent": "node desktop-agent.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "webrtc",
+    "screen-sharing",
+    "websockets",
+    "remote-control"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "node-powershell": "^5.0.1",
+    "robotjs": "^0.6.0",
+    "ws": "^8.18.3"
+  }
+}

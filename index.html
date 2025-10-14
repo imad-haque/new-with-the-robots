@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShareScreen - Remote Desktop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+        }
+        .sharescreen-header {
+            background: linear-gradient(90deg, #7c3aed 0%, #a855f7 100%);
+        }
+        .sharescreen-btn-primary {
+            background: linear-gradient(90deg, #7c3aed 0%, #a855f7 100%);
+        }
+        .sharescreen-btn-primary:hover {
+            background: linear-gradient(90deg, #6d28d9 0%, #9333ea 100%);
+        }
+        .sharescreen-btn-success {
+            background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+        }
+        .sharescreen-btn-success:hover {
+            background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+        }
+        .sharescreen-btn-danger {
+            background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+        }
+        .sharescreen-btn-danger:hover {
+            background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+        }
+        .sharescreen-btn-warning {
+            background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+        }
+        .sharescreen-btn-warning:hover {
+            background: linear-gradient(90deg, #d97706 0%, #f59e0b 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-online {
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .status-offline {
+            background-color: #ef4444;
+        }
+        .status-connecting {
+            background-color: #f59e0b;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .user-card {
+            transition: all 0.2s ease;
+        }
+        .user-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .control-overlay {
+            cursor: none;
+        }
+        .control-overlay.active {
+            cursor: crosshair;
+        }
+        .modal {
+            transition: opacity 0.3s ease;
+        }
+    </style>
+</head>
+<body class="text-white flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="sharescreen-header p-3 flex justify-between items-center shadow-lg">
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+                <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+                </svg>
+                <h1 class="text-xl font-bold">ShareScreen</h1>
+            </div>
+            <div class="flex items-center">
+                <span id="connection-status-indicator" class="status-indicator status-offline"></span>
+                <span id="connection-status" class="text-sm font-medium">Not connected</span>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="glass-effect rounded-lg px-3 py-1 flex items-center">
+                <span class="text-xs font-semibold mr-2">Room:</span>
+                <span id="room-status" class="font-bold">No room</span>
+            </div>
+            <button class="glass-effect hover:bg-white hover:bg-opacity-10 px-4 py-2 rounded-lg text-sm font-medium transition-all">Session Details</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex p-4 space-x-4 overflow-hidden">
+        <!-- Screen Display -->
+        <div class="flex-1 flex flex-col bg-black rounded-xl overflow-hidden relative shadow-2xl">
+            <video id="screen-video" class="w-full h-full object-contain" autoplay playsinline></video>
+            <div id="control-overlay" class="absolute inset-0 z-10 hidden"></div>
+            
+            <!-- Placeholder when no screen is shared -->
+            <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900">
+                <div class="text-center p-8 rounded-2xl glass-effect max-w-md">
+                    <svg class="w-20 h-20 mx-auto text-purple-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    <h3 class="text-xl font-bold mb-2">No Active Session</h3>
+                    <p class="text-gray-400 mb-6">Start a screen sharing session to view remote content</p>
+                    <button id="share-screen-btn" class="sharescreen-btn-primary px-4 py-2 rounded-lg font-semibold text-sm transition-all" disabled>Share Screen</button>
+                </div>
+            </div>
+
+            <!-- Control Bar -->
+            <div class="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 glass-effect rounded-xl p-2">
+                <button id="fullscreen-btn" class="p-2 rounded-lg hover:bg-white hover:bg-opacity-10 transition-all hidden" title="Fullscreen">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4h4m12 4V4h-4M4 16v4h4m12-4v4h-4"></path>
+                    </svg>
+                </button>
+                <button id="request-control-btn" class="sharescreen-btn-primary px-4 py-2 rounded-lg font-semibold text-sm hidden transition-all">Request Control</button>
+                <button id="revoke-control-btn" class="sharescreen-btn-warning px-4 py-2 rounded-lg font-semibold text-sm hidden transition-all">Revoke Control</button>
+                <button id="stop-share-btn" class="sharescreen-btn-danger px-4 py-2 rounded-lg font-semibold text-sm hidden transition-all">Stop Sharing</button>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <aside class="w-80 flex flex-col space-y-4">
+            <!-- Connection Panel -->
+            <div class="glass-effect rounded-xl p-4 shadow-lg">
+                <h2 class="font-bold text-lg mb-3 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                    Connection
+                </h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Room ID</label>
+                        <input type="text" id="room-id-input" placeholder="Enter Room ID" 
+                               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Your Name</label>
+                        <input type="text" id="your-name-input" placeholder="Enter your name" 
+                               class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <button id="join-btn" class="sharescreen-btn-primary w-full py-2.5 rounded-lg font-semibold transition-all">
+                        Join Room
+                    </button>
+                </div>
+            </div>
+
+            <!-- Participants Panel -->
+            <div class="glass-effect rounded-xl p-4 flex-1 flex flex-col shadow-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="font-bold text-lg flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"></path>
+                        </svg>
+                        Participants
+                    </h2>
+                    <span id="participant-count" class="bg-purple-500 text-xs font-semibold px-2 py-1 rounded-full">0</span>
+                </div>
+                <div id="users-list" class="flex-1 overflow-y-auto space-y-2">
+                    <div class="text-center py-8 text-gray-400">
+                        <svg class="w-12 h-12 mx-auto mb-2 opacity-50" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                        </svg>
+                        <p>No participants</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Control Request Modal -->
+    <div id="control-request-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden modal">
+        <div class="glass-effect p-6 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div class="text-center mb-2">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-500 flex items-center justify-center">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold mb-2">Remote Control Request</h3>
+                <p id="request-message" class="text-gray-300 mb-6">Someone is requesting to control your screen</p>
+            </div>
+            <div class="flex space-x-3">
+                <button id="deny-control-btn" class="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg font-semibold transition-all">Deny</button>
+                <button id="accept-control-btn" class="flex-1 sharescreen-btn-success px-4 py-3 rounded-lg font-semibold transition-all">Accept</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Request Modal -->
+    <div id="share-request-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden modal">
+        <div class="glass-effect p-6 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div class="text-center mb-2">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500 flex items-center justify-center">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold mb-2">Screen Share Request</h3>
+                <p id="share-request-message" class="text-gray-300 mb-6">Someone wants to share their screen with you</p>
+            </div>
+            <div class="flex space-x-3">
+                <button id="deny-share-btn" class="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg font-semibold transition-all">Deny</button>
+                <button id="accept-share-btn" class="flex-1 sharescreen-btn-success px-4 py-3 rounded-lg font-semibold transition-all">Accept</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const screenVideo = document.getElementById('screen-video');
+            const placeholder = document.getElementById('placeholder');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const usersList = document.getElementById('users-list');
+            const roomIdInput = document.getElementById('room-id-input');
+            const yourNameInput = document.getElementById('your-name-input');
+            const joinBtn = document.getElementById('join-btn');
+            const shareScreenBtn = document.getElementById('share-screen-btn');
+            const stopShareBtn = document.getElementById('stop-share-btn');
+            const requestControlBtn = document.getElementById('request-control-btn');
+            const revokeControlBtn = document.getElementById('revoke-control-btn');
+            const controlRequestModal = document.getElementById('control-request-modal');
+            const requestMessage = document.getElementById('request-message');
+            const acceptControlBtn = document.getElementById('accept-control-btn');
+            const denyControlBtn = document.getElementById('deny-control-btn');
+            const controlOverlay = document.getElementById('control-overlay');
+            const roomStatus = document.getElementById('room-status');
+            const connectionStatus = document.getElementById('connection-status');
+            const shareRequestModal = document.getElementById('share-request-modal');
+            const shareRequestMessage = document.getElementById('share-request-message');
+            const acceptShareBtn = document.getElementById('accept-share-btn');
+            const denyShareBtn = document.getElementById('deny-share-btn');
+
+            let localStream;
+            let peerConnections = {};
+            let ws;
+            let localId;
+            let currentRoom;
+            let localName;
+            let streamerId = null;
+            let controllerId = null;
+            let pendingControlRequestFrom = null;
+            let pendingShareRequestFrom = null;
+            let agentWs = null; // WebSocket for the local desktop agent
+
+            const wsUrl = `ws://${window.location.host}`;
+            const agentWsUrl = 'ws://localhost:3001';
+
+            // ------------------- Join Room -------------------
+            joinBtn.addEventListener('click', () => {
+                const roomId = roomIdInput.value.trim();
+                const name = yourNameInput.value.trim();
+                if (roomId && name) {
+                    currentRoom = roomId;
+                    localName = name;
+                    joinRoom(roomId, name);
+                    roomIdInput.disabled = true;
+                    yourNameInput.disabled = true;
+                    joinBtn.disabled = true;
+                    joinBtn.textContent = 'Joined';
+                    shareScreenBtn.disabled = false;
+                    roomStatus.textContent = `Room: ${roomId}`;
+                    roomStatus.classList.remove('bg-purple-600');
+                    roomStatus.classList.add('bg-green-600');
+                } else {
+                    alert('Please enter a Room ID and your name.');
+                }
+            });
+
+            // ------------------- WebRTC & Signaling -------------------
+            function joinRoom(roomId, name) {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('Connected to signaling server');
+                    connectionStatus.textContent = 'Connected';
+                    connectionStatus.classList.add('text-green-400');
+                    ws.send(JSON.stringify({ type: 'join', roomId, name }));
+                };
+
+                ws.onmessage = async (message) => {
+                    const data = JSON.parse(message.data);
+                    console.log('Received message:', data);
+
+                    switch (data.type) {
+                        case 'welcome':
+                            localId = data.id;
+                            for (const user of data.users) {
+                                createPeerConnection(user.id, true);
+                            }
+                            break;
+                        case 'user-joined':
+                            createPeerConnection(data.newUser.id, false);
+                            break;
+                        case 'user-left':
+                            if (peerConnections[data.id]) {
+                                peerConnections[data.id].close();
+                                delete peerConnections[data.id];
+                            }
+                            if (data.id === streamerId) {
+                                resetVideo();
+                                streamerId = null;
+                            }
+                            if(data.id === controllerId){
+                                handleRevokeControl();
+                            }
+                            break;
+                        case 'user-list-update':
+                            updateUsersList(data.users);
+                            break;
+                        case 'offer':
+                            await handleOffer(data.from, data.offer);
+                            break;
+                        case 'answer':
+                            await handleAnswer(data.from, data.answer);
+                            break;
+                        case 'candidate':
+                            await handleCandidate(data.from, data.candidate);
+                            break;
+                        case 'stream-started':
+                            placeholder.classList.add('hidden');
+                            screenVideo.srcObject = new MediaStream();
+                            streamerId = data.from;
+                            screenVideo.dataset.streamerId = data.from;
+                            fullscreenBtn.classList.remove('hidden');
+                            if(localId !== streamerId) requestControlBtn.classList.remove('hidden');
+                            break;
+                        case 'stream-ended':
+                            resetVideo();
+                            streamerId = null;
+                            handleRevokeControl();
+                            break;
+                        case 'request-control':
+                            handleControlRequest(data.from, data.name);
+                            break;
+                        case 'grant-control':
+                            handleGrantControl(data.from);
+                            break;
+                        case 'deny-control':
+                            alert(`${data.name} denied your request for control.`);
+                            break;
+                        case 'revoke-control':
+                            handleRevokeControl();
+                            alert('Screen control has been revoked.');
+                            break;
+                        case 'control-event':
+                            if (localId === streamerId && agentWs && agentWs.readyState === WebSocket.OPEN) {
+                                agentWs.send(JSON.stringify(data.event));
+                            }
+                            break;
+                        case 'request-screen-share':
+                            handleShareRequest(data.from, data.name);
+                            break;
+                        case 'deny-screen-share':
+                            alert(`${data.name} denied your request to share screen.`);
+                            break;
+                    }
+                };
+
+                ws.onclose = () => {
+                    console.log('Disconnected from signaling server');
+                    connectionStatus.textContent = 'Not connected';
+                    connectionStatus.classList.remove('text-green-400');
+                    shareScreenBtn.disabled = true;
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            function createPeerConnection(targetId, isOfferor) {
+                const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                peerConnections[targetId] = pc;
+
+                if (localStream) {
+                    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                }
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        ws.send(JSON.stringify({ type: 'candidate', to: targetId, candidate: event.candidate }));
+                    }
+                };
+
+                pc.ontrack = (event) => {
+                    placeholder.classList.add('hidden');
+                    screenVideo.srcObject = event.streams[0];
+                    streamerId = targetId;
+                    screenVideo.dataset.streamerId = targetId;
+                    fullscreenBtn.classList.remove('hidden');
+                    if(localId !== streamerId) requestControlBtn.classList.remove('hidden');
+                };
+
+                if (isOfferor) {
+                    pc.createOffer()
+                        .then(offer => pc.setLocalDescription(offer))
+                        .then(() => ws.send(JSON.stringify({ type: 'offer', to: targetId, offer: pc.localDescription })))
+                        .catch(console.error);
+                }
+            }
+
+            async function handleOffer(fromId, offer) {
+                if (!peerConnections[fromId]) createPeerConnection(fromId, false);
+                const pc = peerConnections[fromId];
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                ws.send(JSON.stringify({ type: 'answer', to: fromId, answer: pc.localDescription }));
+            }
+
+            async function handleAnswer(fromId, answer) {
+                const pc = peerConnections[fromId];
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+            }
+
+            async function handleCandidate(fromId, candidate) {
+                try {
+                    const pc = peerConnections[fromId];
+                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) { console.error('Error adding ice candidate', e); }
+            }
+
+            // ------------------- Users List -------------------
+            function updateUsersList(users) {
+                usersList.innerHTML = '';
+                if (users.length <= 1) {
+                    usersList.innerHTML = '<p class="text-gray-400">No other users connected</p>';
+                    return;
+                }
+                users.forEach(user => {
+                    const userContainer = document.createElement('div');
+                    userContainer.className = 'flex justify-between items-center py-2 text-sm';
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = `${user.name} ${user.id === localId ? '(You)' : ''}`;
+                    if(user.id === streamerId) nameSpan.textContent += ' (Sharing)';
+                    if(user.id === controllerId) nameSpan.textContent += ' (Controlling)';
+                    userContainer.appendChild(nameSpan);
+
+                    if (user.id !== localId && !streamerId) {
+                        const requestBtn = document.createElement('button');
+                        requestBtn.textContent = 'Request Share';
+                        requestBtn.className = 'text-xs bg-purple-500 hover:bg-purple-600 px-2 py-1 rounded';
+                        requestBtn.onclick = () => {
+                            ws.send(JSON.stringify({ type: 'request-screen-share', to: user.id, name: localName }));
+                            alert(`Request to share screen sent to ${user.name}.`);
+                        };
+                        userContainer.appendChild(requestBtn);
+                    }
+                    usersList.appendChild(userContainer);
+                });
+            }
+
+            // ------------------- Screen Sharing -------------------
+            shareScreenBtn.addEventListener('click', async () => {
+                try {
+                    localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                    localStream.getTracks().forEach(track => {
+                        for (const peerId in peerConnections) peerConnections[peerId].addTrack(track, localStream);
+                    });
+                    for (const peerId in peerConnections) {
+                        const pc = peerConnections[peerId];
+                        pc.createOffer().then(offer => pc.setLocalDescription(offer))
+                          .then(() => ws.send(JSON.stringify({ type: 'offer', to: peerId, offer: pc.localDescription })));
+                    }
+                    placeholder.classList.add('hidden');
+                    screenVideo.srcObject = localStream;
+                    streamerId = localId;
+                    screenVideo.dataset.streamerId = localId;
+                    fullscreenBtn.classList.remove('hidden');
+                    shareScreenBtn.classList.add('hidden');
+                    stopShareBtn.classList.remove('hidden');
+                    revokeControlBtn.classList.remove('hidden');
+                    ws.send(JSON.stringify({type: 'stream-started'}));
+                    localStream.getVideoTracks()[0].onended = stopSharing;
+                } catch (error) { console.error('Error sharing screen:', error); }
+            });
+
+            stopShareBtn.addEventListener('click', stopSharing);
+
+            function stopSharing() {
+                if(localStream) localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+                for (const peerId in peerConnections) {
+                    const pc = peerConnections[peerId];
+                    const senders = pc.getSenders();
+                    senders.forEach(sender => { if(sender.track) pc.removeTrack(sender); });
+                    pc.createOffer().then(offer => pc.setLocalDescription(offer))
+                      .then(() => ws.send(JSON.stringify({ type: 'offer', to: peerId, offer: pc.localDescription })));
+                }
+                resetVideo();
+                shareScreenBtn.classList.remove('hidden');
+                stopShareBtn.classList.add('hidden');
+                revokeControlBtn.classList.add('hidden');
+                ws.send(JSON.stringify({type: 'stream-ended'}));
+                streamerId = null;
+                handleRevokeControl();
+            }
+
+            function resetVideo() {
+                screenVideo.srcObject = null;
+                placeholder.classList.remove('hidden');
+                fullscreenBtn.classList.add('hidden');
+                requestControlBtn.classList.add('hidden');
+                delete screenVideo.dataset.streamerId;
+            }
+
+            fullscreenBtn.addEventListener('click', () => {
+                if (screenVideo.requestFullscreen) screenVideo.requestFullscreen();
+                else if (screenVideo.webkitRequestFullscreen) screenVideo.webkitRequestFullscreen();
+                else if (screenVideo.msRequestFullscreen) screenVideo.msRequestFullscreen();
+            });
+
+            // ------------------- Remote Control -------------------
+            requestControlBtn.addEventListener('click', () => {
+                if(streamerId) {
+                    ws.send(JSON.stringify({ type: 'request-control', to: streamerId, name: localName }));
+                    alert('Control request sent.');
+                }
+            });
+
+            revokeControlBtn.addEventListener('click', () => {
+                if(controllerId){
+                    ws.send(JSON.stringify({ type: 'revoke-control', to: controllerId }));
+                    handleRevokeControl();
+                }
+            });
+
+            function handleControlRequest(fromId, name) {
+                if (localId === streamerId) {
+                    pendingControlRequestFrom = fromId;
+                    requestMessage.textContent = `${name} would like to control your screen.`;
+                    controlRequestModal.classList.remove('hidden');
+                }
+            }
+
+            acceptControlBtn.addEventListener('click', () => {
+                if(pendingControlRequestFrom) {
+                    ws.send(JSON.stringify({ type: 'grant-control', to: pendingControlRequestFrom, from: localId, name: localName }));
+                    controllerId = pendingControlRequestFrom;
+                    connectToAgent();
+                }
+                controlRequestModal.classList.add('hidden');
+                pendingControlRequestFrom = null;
+            });
+
+            denyControlBtn.addEventListener('click', () => {
+                if(pendingControlRequestFrom) ws.send(JSON.stringify({ type: 'deny-control', to: pendingControlRequestFrom, name: localName }));
+                controlRequestModal.classList.add('hidden');
+                pendingControlRequestFrom = null;
+            });
+
+            function handleGrantControl(sharerId) {
+                controllerId = localId;
+                streamerId = sharerId;
+                requestControlBtn.classList.add('hidden');
+                addControlListeners();
+            }
+
+            function handleRevokeControl(){
+                if(localId === controllerId) removeControlListeners();
+                if(localId === streamerId && agentWs) { agentWs.close(); agentWs = null; }
+                controllerId = null;
+                if(localId !== streamerId && streamerId !== null) requestControlBtn.classList.remove('hidden');
+            }
+
+            function connectToAgent() {
+                if(localId !== streamerId || agentWs) return;
+                agentWs = new WebSocket(agentWsUrl);
+
+                   const link = document.createElement('a');
+            link.href = '/download/agent.exe'; // server route
+            link.download = 'agent.exe';       // optional filename
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+                agentWs.onopen = () => alert('Desktop agent connected. Remote control is active.');
+                agentWs.onclose = () => { agentWs = null; if(controllerId){ alert('Desktop agent disconnected.'); ws.send(JSON.stringify({ type: 'revoke-control', to: controllerId })); handleRevokeControl(); } };
+                agentWs.onerror = () => { alert('Could not connect to the desktop agent.'); ws.send(JSON.stringify({ type: 'revoke-control', to: controllerId })); handleRevokeControl(); };
+            }
+
+            const sendControlEvent = (event) => {
+                if(localId !== controllerId || !streamerId) return;
+                const rect = screenVideo.getBoundingClientRect();
+                const x = (event.clientX - rect.left)/rect.width;
+                const y = (event.clientY - rect.top)/rect.height;
+                ws.send(JSON.stringify({ type:'control-event', to: streamerId, event:{ type:event.type, x, y, button:event.button, key:event.key, keyCode:event.keyCode, deltaX:event.deltaX, deltaY:event.deltaY } }));
+            };
+
+            const preventDefaults = (e) => e.preventDefault();
+
+            function addControlListeners() {
+                controlOverlay.classList.remove('hidden');
+                controlOverlay.addEventListener('mousemove', sendControlEvent);
+                controlOverlay.addEventListener('mousedown', sendControlEvent);
+                controlOverlay.addEventListener('mouseup', sendControlEvent);
+                controlOverlay.addEventListener('wheel', sendControlEvent);
+                window.addEventListener('keydown', sendControlEvent);
+                window.addEventListener('keyup', sendControlEvent);
+                controlOverlay.addEventListener('contextmenu', preventDefaults);
+            }
+
+            function removeControlListeners() {
+                controlOverlay.classList.add('hidden');
+                controlOverlay.removeEventListener('mousemove', sendControlEvent);
+                controlOverlay.removeEventListener('mousedown', sendControlEvent);
+                controlOverlay.removeEventListener('mouseup', sendControlEvent);
+                controlOverlay.removeEventListener('wheel', sendControlEvent);
+                window.removeEventListener('keydown', sendControlEvent);
+                window.removeEventListener('keyup', sendControlEvent);
+                controlOverlay.removeEventListener('contextmenu', preventDefaults);
+            }
+
+            // ------------------- Screen Share Requests -------------------
+            function handleShareRequest(fromId, name) {
+                pendingShareRequestFrom = fromId;
+                shareRequestMessage.textContent = `${name} is requesting you to share your screen.`;
+                shareRequestModal.classList.remove('hidden');
+            }
+
+            acceptShareBtn.addEventListener('click', () => {
+                if(pendingShareRequestFrom) shareScreenBtn.click();
+                shareRequestModal.classList.add('hidden');
+                pendingShareRequestFrom = null;
+            });
+
+            denyShareBtn.addEventListener('click', () => {
+                if(pendingShareRequestFrom) ws.send(JSON.stringify({ type: 'deny-screen-share', to: pendingShareRequestFrom, name: localName }));
+                shareRequestModal.classList.add('hidden');
+                pendingShareRequestFrom = null;
+            });
+        });
+    </script>
+</body>
+</html>
